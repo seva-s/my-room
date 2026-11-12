@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>Teen Room — Isometric 3D</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #1a1a24; font-family: system-ui, sans-serif; }
+  #ui {
+    position: fixed; top: 16px; left: 16px; z-index: 10;
+    background: rgba(20, 20, 30, 0.85); color: #fff;
+    padding: 14px 18px; border-radius: 12px; backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    min-width: 220px;
+  }
+  #ui h3 { margin: 0 0 10px 0; font-size: 14px; letter-spacing: 0.5px; color: #ffd166; }
+  #ui label { display: block; margin: 6px 0; font-size: 13px; cursor: pointer; }
+  #ui input { margin-right: 8px; accent-color: #ffd166; }
+  #ui .sep { height: 1px; background: rgba(255,255,255,0.12); margin: 12px 0; }
+  #ui .sub { font-size: 12px; color: #ffd166; margin-bottom: 6px; letter-spacing: 0.5px; }
+  #hint {
+    position: fixed; bottom: 16px; left: 16px; z-index: 10;
+    color: rgba(255,255,255,0.6); font-size: 12px;
+    background: rgba(20,20,30,0.7); padding: 8px 12px; border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <h3>🛏️ СЛОИ КОМНАТЫ</h3>
+  <label><input type="radio" name="walls" value="all" checked> Все 4 стены</label>
+  <label><input type="radio" name="walls" value="back"> Только задняя стена</label>
+  <label><input type="radio" name="walls" value="floor"> Только пол (без стен)</label>
+
+  <div class="sep"></div>
+  <div class="sub">💡 СВЕТ</div>
+  <label><input type="checkbox" id="rgbToggle" checked> RGB-подсветка</label>
+  <label><input type="checkbox" id="lampToggle" checked> Верхний свет</label>
+</div>
+
+<div id="hint">ЛКМ — вращение • Колёсико — зум • ПКМ — перемещение</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- СЦЕНА ----------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#2a2a3a');
+
+// ---------- ИЗОМЕТРИЧЕСКАЯ КАМЕРА ----------
+const aspect = window.innerWidth / window.innerHeight;
+const d = 14;
+const camera = new THREE.OrthographicCamera(-d*aspect, d*aspect, d, -d, 1, 1000);
+camera.position.set(20, 20, 20);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.appendChild(renderer.domElement);
+
+// ---------- УПРАВЛЕНИЕ ----------
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minZoom = 0.4;
+controls.maxZoom = 2.5;
+controls.target.set(0, 1.5, 0);
+
+// ---------- ОСВЕЩЕНИЕ (стало больше) ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+
+// Мягкий «небо/пол» свет — убирает чёрные тени
+const hemi = new THREE.HemisphereLight(0x9db4ff, 0x4a3524, 0.45);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xfff1c8, 1.15);
+sun.position.set(8, 15, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
+sun.shadow.camera.top = 12; sun.shadow.camera.bottom = -12;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x8899ff, 0.45);
+fill.position.set(-6, 8, -4);
+scene.add(fill);
+
+// Тёплый свет от лампы на столе
+const deskLamp = new THREE.PointLight(0xffaa44, 1.4, 9);
+deskLamp.position.set(-3, 3.2, -3);
+scene.add(deskLamp);
+
+// 🔆 Потолочный подвес (главный источник «больше света»)
+const ceilingLight = new THREE.PointLight(0xffe6c0, 1.6, 16, 1.8);
+ceilingLight.position.set(0, 4.7, 0.5);
+scene.add(ceilingLight);
+
+const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.1, 6), mat_placeholder());
+function mat_placeholder(){ return new THREE.MeshStandardMaterial({ color: 0x222222 }); }
+cord.position.set(0, 5.5, 0.5);
+scene.add(cord);
+
+const bulb = new THREE.Mesh(
+  new THREE.SphereGeometry(0.28, 20, 16),
+  new THREE.MeshStandardMaterial({ color: 0xfff3d0, emissive: 0xffddaa, emissiveIntensity: 1.6 })
+);
+bulb.position.set(0, 4.9, 0.5);
+scene.add(bulb);
+
+const shade = new THREE.Mesh(
+  new THREE.ConeGeometry(0.75, 0.55, 24, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0x2b2b3a, side: THREE.DoubleSide, metalness: 0.4, roughness: 0.6 })
+);
+shade.position.set(0, 5.15, 0.5);
+scene.add(shade);
+
+// ---------- МАТЕРИАЛЫ ----------
+const mat = {
+  floor:    new THREE.MeshStandardMaterial({ color: 0x8b6f47 }),
+  wall:     new THREE.MeshStandardMaterial({ color: 0xd8c9a8 }),
+  wallBack: new THREE.MeshStandardMaterial({ color: 0xc9b896 }),
+  bed:      new THREE.MeshStandardMaterial({ color: 0x4a6fa5 }),
+  blanket:  new THREE.MeshStandardMaterial({ color: 0xd94f4f }),
+  pillow:   new THREE.MeshStandardMaterial({ color: 0xf5f1e6 }),
+  wood:     new THREE.MeshStandardMaterial({ color: 0x6b4a2b }),
+  woodDark: new THREE.MeshStandardMaterial({ color: 0x3d2817 }),
+  metal:    new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.6, roughness: 0.4 }),
+  screen:   new THREE.MeshStandardMaterial({ color: 0x1a1a2e, emissive: 0x2a4a7f, emissiveIntensity: 0.6 }),
+  book1:    new THREE.MeshStandardMaterial({ color: 0xc0392b }),
+  book2:    new THREE.MeshStandardMaterial({ color: 0x27ae60 }),
+  book3:    new THREE.MeshStandardMaterial({ color: 0xf39c12 }),
+  book4:    new THREE.MeshStandardMaterial({ color: 0x8e44ad }),
+  poster1:  new THREE.MeshStandardMaterial({ color: 0xe74c3c }),
+  poster2:  new THREE.MeshStandardMaterial({ color: 0x16a085 }),
+  carpet:   new THREE.MeshStandardMaterial({ color: 0x8e44ad }),
+  plant:    new THREE.MeshStandardMaterial({ color: 0x2d6a4f }),
+  pot:      new THREE.MeshStandardMaterial({ color: 0xa0522d }),
+  guitar:   new THREE.MeshStandardMaterial({ color: 0xb87333 }),
+  window:   new THREE.MeshStandardMaterial({ color: 0xaaddff, emissive: 0x88bbdd, emissiveIntensity: 0.4, transparent: true, opacity: 0.7 }),
+  frame:    new THREE.MeshStandardMaterial({ color: 0xffffff }),
+  rug:      new THREE.MeshStandardMaterial({ color: 0xd4a574 }),
+
+  // === НОВЫЕ МАТЕРИАЛЫ ===
+  tvBody:    new THREE.MeshStandardMaterial({ color: 0x14141a, metalness: 0.5, roughness: 0.5 }),
+  tvScreen:  new THREE.MeshStandardMaterial({ color: 0x05060a, emissive: 0x3f6bd8, emissiveIntensity: 1.1 }),
+  tvStand:   new THREE.MeshStandardMaterial({ color: 0x2c2c38, metalness: 0.3, roughness: 0.7 }),
+  console:   new THREE.MeshStandardMaterial({ color: 0x1c1c26, metalness: 0.4, roughness: 0.5 }),
+  ledCyan:   new THREE.MeshStandardMaterial({ color: 0x0b1a1a, emissive: 0x22e6ff, emissiveIntensity: 2.2 }),
+  ledMagenta:new THREE.MeshStandardMaterial({ color: 0x1a0b1a, emissive: 0xff2fd6, emissiveIntensity: 2.2 }),
+  ledWarm:   new THREE.MeshStandardMaterial({ color: 0x1a1205, emissive: 0xffb347, emissiveIntensity: 1.8 }),
+  neonCyan:  new THREE.MeshStandardMaterial({ color: 0x081016, emissive: 0x25f4ee, emissiveIntensity: 2.6 }),
+  bikeFrame: new THREE.MeshStandardMaterial({ color: 0xff5f1f, metalness: 0.5, roughness: 0.35 }),
+  bikeTire:  new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 }),
+  bikeRim:   new THREE.MeshStandardMaterial({ color: 0xcfcfd6, metalness: 0.8, roughness: 0.3 }),
+  ottoman:   new THREE.MeshStandardMaterial({ color: 0x2f8f83, roughness: 0.95 }),
+  ottomanTop:new THREE.MeshStandardMaterial({ color: 0x37a596, roughness: 0.95 }),
+  ballWhite: new THREE.MeshStandardMaterial({ color: 0xf7f7f7, roughness: 0.6 }),
+  ballBlack: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.7 }),
+};
+
+// ---------- ГЕОМЕТРИЯ КОМНАТЫ ----------
+const ROOM_W = 10, ROOM_D = 10, ROOM_H = 6;
+const wallsGroup = new THREE.Group();
+scene.add(wallsGroup);
+
+function makeWall(w, h, d, x, y, z, material) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// Пол
+const floor = makeWall(ROOM_W, 0.2, ROOM_D, 0, 0, 0, mat.floor);
+scene.add(floor);
+
+// Стены
+const wallThick = 0.2;
+const backWall  = makeWall(ROOM_W, ROOM_H, wallThick, 0, ROOM_H/2, -ROOM_D/2, mat.wallBack);
+const leftWall  = makeWall(wallThick, ROOM_H, ROOM_D, -ROOM_W/2, ROOM_H/2, 0, mat.wall);
+const rightWall = makeWall(wallThick, ROOM_H, ROOM_D,  ROOM_W/2, ROOM_H/2, 0, mat.wall);
+const frontWall = makeWall(ROOM_W, ROOM_H, wallThick, 0, ROOM_H/2,  ROOM_D/2, mat.wall);
+
+wallsGroup.add(backWall, leftWall, rightWall, frontWall);
+
+// Окно на задней стене
+const windowFrame = makeWall(2.4, 1.8, 0.1, -2, 3.5, -ROOM_D/2 + 0.15, mat.frame);
+const windowGlass = makeWall(2.0, 1.4, 0.05, -2, 3.5, -ROOM_D/2 + 0.2, mat.window);
+wallsGroup.add(windowFrame, windowGlass);
+
+// ---------- МЕБЕЛЬ ----------
+const roomGroup = new THREE.Group();
+scene.add(roomGroup);
+
+function box(w, h, d, x, y, z, material) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+// === КРОВАТЬ (правый угол) ===
+const bedGroup = new THREE.Group();
+bedGroup.add(box(2.2, 0.4, 4,   0, 0.4, 0, mat.wood));
+bedGroup.add(box(2.2, 0.3, 4,   0, 0.75, 0, mat.bed));
+bedGroup.add(box(2.2, 0.8, 0.3, 0, 1.1, -1.85, mat.wood));
+bedGroup.add(box(0.6, 0.25, 0.4, -0.5, 1.05, -1.6, mat.pillow));
+bedGroup.add(box(0.6, 0.25, 0.4,  0.5, 1.05, -1.6, mat.pillow));
+bedGroup.add(box(2.2, 0.15, 2.5, 0, 0.95, 0.5, mat.blanket));
+
+// 💡 Неоновая подсветка под кроватью (RGB underglow)
+const bedGlow = new THREE.Group();
+bedGlow.add(box(2.25, 0.08, 0.08, 0, 0.22,  2.02, mat.ledMagenta));
+bedGlow.add(box(2.25, 0.08, 0.08, 0, 0.22, -2.02, mat.ledMagenta));
+bedGlow.add(box(0.08, 0.08, 4.0,  1.12, 0.22, 0, mat.ledMagenta));
+bedGlow.add(box(0.08, 0.08, 4.0, -1.12, 0.22, 0, mat.ledMagenta));
+bedGroup.add(bedGlow);
+
+const bedGlowLight = new THREE.PointLight(0xff2fd6, 1.1, 6, 2);
+bedGlowLight.position.set(0, 0.35, 0);
+bedGroup.add(bedGlowLight);
+
+bedGroup.position.set(3.2, 0, -2.5);
+roomGroup.add(bedGroup);
+
+// === ПИСЬМЕННЫЙ СТОЛ (левый угол у задней стены) ===
+const deskGroup = new THREE.Group();
+deskGroup.add(box(2.6, 0.1, 1.2, 0, 1.4, 0, mat.wood));
+deskGroup.add(box(0.1, 1.4, 1.2, -1.2, 0.7, 0, mat.wood));
+deskGroup.add(box(0.1, 1.4, 1.2,  1.2, 0.7, 0, mat.wood));
+deskGroup.add(box(2.4, 0.6, 0.1, 0, 1.05, -0.55, mat.woodDark));
+deskGroup.add(box(0.7, 0.5, 1.0, -0.8, 1.1, 0, mat.woodDark));
+deskGroup.add(box(0.7, 0.5, 1.0,  0.8, 1.1, 0, mat.woodDark));
+deskGroup.add(box(1.2, 0.8, 0.05, 0, 2.0, -0.3, mat.screen));
+deskGroup.add(box(0.1, 0.4, 0.3, 0, 1.6, -0.3, mat.metal));
+deskGroup.add(box(0.8, 0.05, 0.3, 0, 1.48, 0.2, mat.metal));
+deskGroup.add(box(0.15, 0.25, 0.15, 0.9, 1.58, 0.3, mat.frame));
+// RGB-лента под столешницей
+deskGroup.add(box(2.5, 0.06, 0.06, 0, 1.32, 0.6, mat.ledCyan));
+deskGroup.position.set(-3.2, 0, -4.2);
+roomGroup.add(deskGroup);
+
+// === СТУЛ ===
+const chairGroup = new THREE.Group();
+chairGroup.add(box(0.9, 0.1, 0.9, 0, 0.9, 0, mat.woodDark));
+chairGroup.add(box(0.9, 1.0, 0.1, 0, 1.4, -0.4, mat.woodDark));
+chairGroup.add(box(0.1, 0.9, 0.1, -0.35, 0.45, -0.35, mat.metal));
+chairGroup.add(box(0.1, 0.9, 0.1,  0.35, 0.45, -0.35, mat.metal));
+chairGroup.add(box(0.1, 0.9, 0.1, -0.35, 0.45,  0.35, mat.metal));
+chairGroup.add(box(0.1, 0.9, 0.1,  0.35, 0.45,  0.35, mat.metal));
+chairGroup.position.set(-3.2, 0, -2.8);
+roomGroup.add(chairGroup);
+
+// === КНИЖНАЯ ПОЛКА (у правой стены) ===
+const shelfGroup = new THREE.Group();
+shelfGroup.add(box(1.6, 3.2, 0.6, 0, 1.6, 0, mat.woodDark));
+for (let i = 0; i < 4; i++) {
+  shelfGroup.add(box(1.5, 0.08, 0.55, 0, 0.5 + i*0.8, 0, mat.wood));
+}
+const bookMats = [mat.book1, mat.book2, mat.book3, mat.book4];
+for (let shelf = 0; shelf < 4; shelf++) {
+  let x = -0.6;
+  for (let b = 0; b < 5; b++) {
+    const h = 0.4 + Math.random()*0.2;
+    const book = box(0.12, h, 0.4, x, 0.55 + shelf*0.8 + h/2, 0, bookMats[(shelf+b)%4]);
+    shelfGroup.add(book);
+    x += 0.2;
+  }
+}
+shelfGroup.position.set(4.2, 0, 1);
+roomGroup.add(shelfGroup);
+
+// === КОВЁР ===
+const rug = box(4, 0.02, 3, 0, 0.11, 1, mat.rug);
+roomGroup.add(rug);
+
+// === НАСТОЛЬНАЯ ЛАМПА ===
+const lampGroup = new THREE.Group();
+lampGroup.add(box(0.3, 0.05, 0.3, 0, 0, 0, mat.metal));
+lampGroup.add(box(0.05, 0.6, 0.05, 0, 0.3, 0, mat.metal));
+lampGroup.add(box(0.4, 0.3, 0.4, 0, 0.7, 0, mat.poster1));
+lampGroup.position.set(-3.9, 1.45, -4.5);
+roomGroup.add(lampGroup);
+
+// === ПОСТЕРЫ на задней стене ===
+const poster1 = box(1.2, 1.6, 0.05, 1.5, 3.5, -ROOM_D/2 + 0.15, mat.poster1);
+const poster2 = box(1.0, 1.2, 0.05, 3.2, 3.2, -ROOM_D/2 + 0.15, mat.poster2);
+wallsGroup.add(poster1, poster2);
+
+// === РАСТЕНИЕ в углу ===
+const plantGroup = new THREE.Group();
+plantGroup.add(box(0.5, 0.6, 0.5, 0, 0.3, 0, mat.pot));
+plantGroup.add(box(0.6, 0.8, 0.6, 0, 0.9, 0, mat.plant));
+plantGroup.add(box(0.4, 0.5, 0.4, 0.2, 1.2, 0.1, mat.plant));
+plantGroup.add(box(0.3, 0.4, 0.3, -0.2, 1.1, -0.1, mat.plant));
+plantGroup.position.set(4.3, 0, -4.3);
+roomGroup.add(plantGroup);
+
+// === ГИТАРА у стены ===
+const guitarGroup = new THREE.Group();
+guitarGroup.add(box(0.4, 0.8, 0.1, 0, 0.4, 0, mat.guitar));
+guitarGroup.add(box(0.1, 1.2, 0.05, 0, 1.2, 0, mat.woodDark));
+guitarGroup.rotation.z = 0.15;
+guitarGroup.position.set(-4.5, 0, 2);
+roomGroup.add(guitarGroup);
+
+// === РЮКЗАК на полу ===
+const backpack = box(0.6, 0.7, 0.3, 0, 0.35, 0, mat.poster2);
+backpack.position.set(2.9, 0.35, 3.4);
+roomGroup.add(backpack);
+
+// === НАУШНИКИ на столе ===
+const headphones = box(0.3, 0.25, 0.25, 0, 1.6, 0.4, mat.metal);
+headphones.position.set(-3.2, 0, -4.2);
+roomGroup.add(headphones);
+
+/* ==========================================================
+   📺 НОВОЕ: ТЕЛЕВИЗОР С ПРИСТАВКОЙ (передняя стена)
+   ========================================================== */
+const tvGroup = new THREE.Group();
+
+// Тумба под ТВ
+tvGroup.add(box(3.4, 0.75, 0.9, 0, 0.38, 0, mat.tvStand));
+tvGroup.add(box(3.2, 0.05, 0.05, 0, 0.72, 0.46, mat.ledCyan)); // LED-цоколь тумбы
+// Ящички тумбы
+tvGroup.add(box(1.5, 0.5, 0.05, -0.85, 0.4, 0.46, mat.woodDark));
+tvGroup.add(box(1.5, 0.5, 0.05,  0.85, 0.4, 0.46, mat.woodDark));
+
+// Корпус телевизора
+tvGroup.add(box(3.0, 1.75, 0.14, 0, 1.65, -0.02, mat.tvBody));
+// Экран (светится)
+const tvScreen = box(2.82, 1.55, 0.06, 0, 1.65, -0.09, mat.tvScreen);
+tvGroup.add(tvScreen);
+// Ножка
+tvGroup.add(box(0.5, 0.12, 0.4, 0, 0.82, 0, mat.tvBody));
+
+// Bias-light — светящаяся панель за ТВ
+tvGroup.add(box(3.1, 1.85, 0.06, 0, 1.65, 0.12, mat.ledMagenta));
+
+// Приставка на тумбе
+tvGroup.add(box(1.0, 0.18, 0.75, 1.0, 0.85, 0.05, mat.console));
+tvGroup.add(box(0.85, 0.03, 0.03, 1.0, 0.95, -0.32, mat.ledCyan)); // LED-полоска консоли
+tvGroup.add(box(0.12, 0.02, 0.5, 1.0, 0.95, 0.05, mat.ledCyan));   // щель диска
+
+// Геймпады
+const pad1 = box(0.34, 0.1, 0.22, -1.1, 0.82, 0.1, mat.console);
+const pad2 = box(0.34, 0.1, 0.22, -0.6, 0.82, 0.18, mat.console);
+pad1.rotation.y = 0.3; pad2.rotation.y = -0.25;
+tvGroup.add(pad1, pad2);
+
+// Свет от экрана в комнату
+const tvGlow = new THREE.PointLight(0x4f8cff, 1.5, 9, 2);
+tvGlow.position.set(0, 1.7, -1.2);
+tvGroup.add(tvGlow);
+
+tvGroup.position.set(0.4, 0, 4.35);
+roomGroup.add(tvGroup);
+
+/* ==========================================================
+   🚲 НОВОЕ: ВЕЛОСИПЕД НА СТЕНЕ (левая стена)
+   ========================================================== */
+function tube(x1, y1, x2, y2, r, material) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), material);
+  m.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0);
+  m.rotation.z = Math.atan2(dy, dx) - Math.PI / 2;
+  m.castShadow = true;
+  return m;
+}
+function wheel(z) {
+  const g = new THREE.Group();
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.075, 10, 28), mat.bikeTire);
+  const rim  = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.03, 8, 28), mat.bikeRim);
+  tire.castShadow = true; rim.castShadow = true;
+  g.add(tire, rim);
+  for (let i = 0; i < 8; i++) {
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.9, 5), mat.bikeRim);
+    sp.rotation.z = (i / 8) * Math.PI;
+    g.add(sp);
+  }
+  g.position.set(z, 0, 0);
+  return g;
+}
+
+const bikeGroup = new THREE.Group();
+bikeGroup.add(wheel(-0.85));
+bikeGroup.add(wheel( 0.85));
+// Рама (треугольники)
+bikeGroup.add(tube(-0.85, 0, -0.15, 0.05, 0.045, mat.bikeFrame));  // перо нижнее
+bikeGroup.add(tube(-0.85, 0, -0.45, 0.62, 0.04,  mat.bikeFrame));  // перо верхнее
+bikeGroup.add(tube(-0.45, 0.62, -0.15, 0.05, 0.045, mat.bikeFrame));
+bikeGroup.add(tube(-0.45, 0.62, 0.55, 0.72, 0.045, mat.bikeFrame)); // верхняя труба
+bikeGroup.add(tube(-0.15, 0.05, 0.55, 0.72, 0.045, mat.bikeFrame)); // нижняя труба
+bikeGroup.add(tube(0.55, 0.72, 0.85, 0, 0.04, mat.bikeFrame));      // вилка
+bikeGroup.add(tube(0.55, 0.72, 0.62, 0.92, 0.04, mat.bikeFrame));   // рулевой стакан
+// Руль
+const handle = box(0.45, 0.07, 0.07, 0.66, 0.96, 0, mat.bikeTire);
+handle.rotation.y = 0.5;
+bikeGroup.add(handle);
+// Седло
+bikeGroup.add(box(0.42, 0.1, 0.2, -0.48, 0.72, 0, mat.bikeTire));
+// Каретка + шатун
+const crank = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.06, 14), mat.bikeRim);
+crank.rotation.x = Math.PI / 2;
+crank.position.set(-0.15, 0.05, 0.08);
+bikeGroup.add(crank);
+bikeGroup.add(tube(-0.15, 0.05, -0.05, 0.3, 0.025, mat.bikeRim));
+// Кронштейны крепления к стене
+bikeGroup.add(box(0.12, 0.12, 0.5, -0.85, 0, -0.35, mat.metal));
+bikeGroup.add(box(0.12, 0.12, 0.5,  0.85, 0, -0.35, mat.metal));
+
+// Поворачиваем плоскость велосипеда к левой стене (плоскость YZ)
+bikeGroup.rotation.y = Math.PI / 2;
+bikeGroup.position.set(-4.72, 3.35, -1.1);
+wallsGroup.add(bikeGroup);
+
+/* ==========================================================
+   🛋️ НОВОЕ: БОЛЬШОЙ ПУФИК (на ковре, перед ТВ)
+   ========================================================== */
+const ottomanGroup = new THREE.Group();
+const oBase = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.12, 0.72, 28), mat.ottoman);
+oBase.position.y = 0.36;
+oBase.castShadow = true; oBase.receiveShadow = true;
+ottomanGroup.add(oBase);
+
+// Мягкая «сдутая» подушка сверху
+const oTop = new THREE.Mesh(new THREE.SphereGeometry(0.98, 28, 18), mat.ottomanTop);
+oTop.scale.set(1, 0.42, 1);
+oTop.position.y = 0.78;
+oTop.castShadow = true;
+ottomanGroup.add(oTop);
+
+// Декоративный шов
+const oSeam = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.045, 8, 30), mat.ottoman);
+oSeam.rotation.x = Math.PI / 2;
+oSeam.position.y = 0.74;
+ottomanGroup.add(oSeam);
+
+// Пуговица по центру
+const oBtn = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), mat.woodDark);
+oBtn.position.y = 1.16;
+ottomanGroup.add(oBtn);
+
+ottomanGroup.position.set(0.6, 0.12, 1.0);
+roomGroup.add(ottomanGroup);
+
+/* ==========================================================
+   ⚽ НОВОЕ: ФУТБОЛЬНЫЙ МЯЧ
+   ========================================================== */
+const ballGroup = new THREE.Group();
+const ballR = 0.36;
+const ball = new THREE.Mesh(new THREE.SphereGeometry(ballR, 28, 20), mat.ballWhite);
+ball.castShadow = true;
+ballGroup.add(ball);
+
+// Пятиугольные панели (цилиндр с 5 сегментами = пентагон)
+const up = new THREE.Vector3(0, 1, 0);
+const pentagons = [
+  [0, 1, 0], [0, -1, 0], [1, 0, 0.3], [-1, 0, 0.3],
+  [0.3, 0.3, -1], [-0.3, 0.3, -1], [0.6, -0.4, -0.6], [-0.6, -0.4, -0.6],
+];
+pentagons.forEach(p => {
+  const n = new THREE.Vector3(p[0], p[1], p[2]).normalize();
+  const patch = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.03, 5), mat.ballBlack);
+  patch.position.copy(n.clone().multiplyScalar(ballR - 0.005));
+  patch.quaternion.setFromUnitVectors(up, n);
+  patch.castShadow = true;
+  ballGroup.add(patch);
+});
+
+ballGroup.position.set(-1.9, ballR + 0.1, 3.3);
+ballGroup.rotation.z = 0.4;
+roomGroup.add(ballGroup);
+
+/* ==========================================================
+   💡 НОВОЕ: RGB-ПОДСВЕТКА (ленты + неон)
+   ========================================================== */
+const rgbGroup = new THREE.Group();
+scene.add(rgbGroup);
+const rgbLights = [];
+
+// LED-лента по верху задней стены
+const ledStripTop = box(ROOM_W - 0.8, 0.12, 0.12, 0, ROOM_H - 0.35, -ROOM_D/2 + 0.3, mat.ledCyan);
+wallsGroup.add(ledStripTop);
+
+// Неоновое кольцо на передней стене
+const neonRing = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.06, 12, 40), mat.neonCyan);
+neonRing.position.set(-3.2, 3.4, ROOM_D/2 - 0.18);
+wallsGroup.add(neonRing);
+
+const neonStick = box(0.1, 0.7, 0.1, -3.2, 2.55, ROOM_D/2 - 0.18, mat.neonCyan);
+wallsGroup.add(neonStick);
+
+const neonLight = new THREE.PointLight(0x25f4ee, 1.4, 8, 2);
+neonLight.position.set(-3.2, 3.4, ROOM_D/2 - 0.8);
+rgbGroup.add(neonLight);
+rgbLights.push(neonLight);
+
+// Угловые RGB-прожекторы
+const cornerA = new THREE.PointLight(0xff2fd6, 1.0, 12, 2);
+cornerA.position.set(-4.2, 5.0, -4.2);
+rgbGroup.add(cornerA); rgbLights.push(cornerA);
+
+const cornerB = new THREE.PointLight(0x22e6ff, 1.0, 12, 2);
+cornerB.position.set(4.2, 5.0, -4.2);
+rgbGroup.add(cornerB); rgbLights.push(cornerB);
+
+// Ленты вдоль боковых стен у пола
+rgbGroup.add(box(0.08, 0.08, ROOM_D - 0.6, -ROOM_W/2 + 0.3, 0.16, 0, mat.ledWarm));
+rgbGroup.add(box(0.08, 0.08, ROOM_D - 0.6,  ROOM_W/2 - 0.3, 0.16, 0, mat.ledWarm));
+
+rgbGroup.add(bedGlow); // неон под кроватью тоже属于 RGB-сцене
+rgbLights.push(bedGlowLight);
+
+// ---------- ПЕРЕКЛЮЧЕНИЕ СЛОЁВ (обновлено под новые объекты) ----------
+const wallParts = {
+  back:  [backWall, windowFrame, windowGlass, poster1, poster2, ledStripTop],
+  left:  [leftWall, bikeGroup],
+  right: [rightWall],
+  front: [frontWall, neonRing, neonStick],
+};
+
+const radios = document.querySelectorAll('input[name="walls"]');
+radios.forEach(r => r.addEventListener('change', (e) => {
+  const v = e.target.value;
+  // Сброс: всё на стенах видно
+  wallsGroup.children.forEach(o => o.visible = true);
+
+  const hide = (arr) => arr.forEach(o => o.visible = false);
+
+  if (v === 'back') {
+    hide(wallParts.left); hide(wallParts.right); hide(wallParts.front);
+  } else if (v === 'floor') {
+    hide(wallParts.left); hide(wallParts.right); hide(wallParts.front); hide(wallParts.back);
+  }
+}));
+
+// ---------- ПЕРЕКЛЮЧАТЕЛИ СВЕТА ----------
+document.getElementById('rgbToggle').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  rgbGroup.visible = on;
+  ledStripTop.visible = on;
+  bedGlow.visible = on;
+  rgbLights.forEach(l => l.visible = on);
+});
+
+document.getElementById('lampToggle').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  ceilingLight.visible = on;
+  bulb.visible = on;
+  shade.visible = on;
+  cord.visible = on;
+});
+
+// ---------- РЕСАЙЗ ----------
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  camera.left = -d*a; camera.right = d*a;
+  camera.top = d; camera.bottom = -d;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------- АНИМАЦИЯ ----------
+const clock = new THREE.Clock();
+function animate() {
+  const t = clock.getElapsedTime();
+
+  // Живая RGB-подсветка: лёгкая пульсация и смена оттенков
+  if (rgbGroup.visible) {
+    const hue1 = (t * 0.06) % 1;
+    const hue2 = (hue1 + 0.5) % 1;
+    mat.ledMagenta.emissive.setHSL(hue1, 1.0, 0.55);
+    mat.ledCyan.emissive.setHSL(hue2, 0.9, 0.55);
+    mat.neonCyan.emissive.setHSL((hue2 + 0.15) % 1, 0.95, 0.6);
+    bedGlowLight.color.copy(mat.ledMagenta.emissive);
+    cornerA.color.copy(mat.ledMagenta.emissive);
+    cornerB.color.copy(mat.ledCyan.emissive);
+    const pulse = 1.2 + Math.sin(t * 2.2) * 0.35;
+    neonLight.intensity = pulse;
+  }
+
+  // Мерцание «игрового» экрана ТВ
+  mat.tvScreen.emissiveIntensity = 1.0 + Math.sin(t * 3.1) * 0.18 + Math.sin(t * 7.7) * 0.08;
+  tvGlow.intensity = 1.4 + Math.sin(t * 3.1) * 0.25;
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body>
+</html>
